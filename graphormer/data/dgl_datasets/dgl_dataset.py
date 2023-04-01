@@ -152,10 +152,16 @@ class GraphormerDGLDataset(Dataset):
         if isinstance(idx, int):
             if self.__indices__ is not None:
                 idx = self.__indices__[idx]
-            graph, y = self.dataset[idx]
-            return self.__preprocess_dgl_graph(graph, y, idx)
+            graph = self.dataset[idx]
+            return self.__preprocess_dgl_graph(graph, torch.tensor(1), idx)
         else:
             raise TypeError("index to a GraphormerDGLDataset can only be an integer.")
 
     def __len__(self) -> int:
         return len(self.dataset) if self.__indices__ is None else len(self.__indices__)
+    
+    def len(self):
+        return self.__len__()
+
+    def get(self, idx):
+        return self.dataset[idx]

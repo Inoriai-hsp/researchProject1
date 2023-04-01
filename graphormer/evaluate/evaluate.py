@@ -16,7 +16,7 @@ from pretrain import load_pretrained_model
 
 import logging
 
-def eval(args, use_pretrained, checkpoint_path=None, logger=None):
+def eval(args, logger=None):
     cfg = convert_namespace_to_omegaconf(args)
     np.random.seed(cfg.common.seed)
     utils.set_torch_seed(cfg.common.seed)
@@ -24,16 +24,6 @@ def eval(args, use_pretrained, checkpoint_path=None, logger=None):
     # initialize task
     task = tasks.setup_task(cfg.task)
     model = task.build_model(cfg.model)
-
-    # load checkpoint
-    if use_pretrained:
-        model_state = load_pretrained_model(cfg.task.pretrained_model_name)
-    else:
-        model_state = torch.load(checkpoint_path)["model"]
-    model.load_state_dict(
-        model_state, strict=True, model_cfg=cfg.model
-    )
-    del model_state
 
     model.to(torch.cuda.current_device())
     # load dataset
@@ -94,13 +84,7 @@ def main():
     )
     args = options.parse_args_and_arch(parser, modify_parser=None)
     logger = logging.getLogger(__name__)
-    if args.pretrained_model_name != "none":
-        eval(args, True, logger=logger)
-    elif hasattr(args, "save_dir"):
-        for checkpoint_fname in os.listdir(args.save_dir):
-            checkpoint_path = Path(args.save_dir) / checkpoint_fname
-            logger.info(f"evaluating checkpoint file {checkpoint_path}")
-            eval(args, False, checkpoint_path, logger)
+    eval(args, logger)
 
 
 

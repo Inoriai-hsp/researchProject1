@@ -34,6 +34,7 @@ from fairseq.optim.amp_optimizer import AMPOptimizer
 import math
 
 from ..data import DATASET_REGISTRY
+from ..data.data_utils import getGraphs
 import sys
 import os
 
@@ -129,6 +130,102 @@ class GraphPredictionConfig(FairseqDataclass):
         metadata={"help": "path to the module of user-defined dataset"},
     )
 
+# shiping
+@register_task("pdg_graph_prediction", dataclass=GraphPredictionConfig)
+class PDGGraphPredictionTask(FairseqTask):
+    """
+    Graph prediction (classification or regression) task.
+    """
+
+    def __init__(self, cfg):
+        super().__init__(cfg)
+
+        dataset, _ = getGraphs(sample_number=50)
+        print(len(dataset))
+        self.dm = GraphormerDataset(
+            dataset=dataset,
+            dataset_source=cfg.dataset_source,
+            seed=cfg.seed,
+        )
+
+    @classmethod
+    def setup_task(cls, cfg, **kwargs):
+        assert cfg.num_classes > 0, "Must set task.num_classes"
+        return cls(cfg)
+
+    def load_dataset(self, split, combine=False, **kwargs):
+        """Load a given dataset split (e.g., train, valid, test)."""
+
+        assert split in ["train", "valid", "test"]
+
+        if split == "train":
+            batched_data = self.dm.dataset_train
+        elif split == "valid":
+            batched_data = self.dm.dataset_val
+        elif split == "test":
+            batched_data = self.dm.dataset_test
+
+        print(len(batched_data))
+
+        batched_data = BatchedDataDataset(
+            batched_data,
+            max_node=self.max_nodes(),
+            multi_hop_max_dist=self.cfg.multi_hop_max_dist,
+            spatial_pos_max=self.cfg.spatial_pos_max,
+        )
+        print(len(batched_data))
+
+        data_sizes = np.array([self.max_nodes()] * len(batched_data))
+
+        target = TargetDataset(batched_data)
+
+        print(len(target))
+
+        dataset = NestedDictionaryDataset(
+            {
+                "nsamples": NumSamplesDataset(),
+                "net_input": {"batched_data": batched_data},
+                "target": target,
+            },
+            sizes=data_sizes,
+        )
+
+        print(len(dataset))
+
+        if split == "train" and self.cfg.train_epoch_shuffle:
+            dataset = EpochShuffleDataset(
+                dataset, num_samples=len(dataset), seed=self.cfg.seed
+            )
+
+        logger.info("Loaded {0} with #samples: {1}".format(split, len(dataset)))
+
+        self.datasets[split] = dataset
+        return self.datasets[split]
+
+    def build_model(self, cfg):
+        from fairseq import models
+
+        with open_dict(cfg) if OmegaConf.is_config(cfg) else contextlib.ExitStack():
+            cfg.max_nodes = self.cfg.max_nodes
+
+        model = models.build_model(cfg, self)
+
+        return model
+
+    def max_nodes(self):
+        return self.cfg.max_nodes
+
+    @property
+    def source_dictionary(self):
+        return None
+
+    @property
+    def target_dictionary(self):
+        return None
+
+    @property
+    def label_dictionary(self):
+        return None
 
 @register_task("graph_prediction", dataclass=GraphPredictionConfig)
 class GraphPredictionTask(FairseqTask):

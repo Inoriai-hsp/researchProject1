@@ -11,7 +11,7 @@ from .gin import GIN
 from .gat import GAT
 from .gcn import GCN
 from .dot_gat import DotGAT
-from graphmae.utils import create_norm, drop_edge
+from ..utils import create_norm, drop_edge
 
 
 def setup_module(m_type, enc_dec, in_dim, num_hidden, out_dim, num_layers, dropout, activation, residual, norm, nhead, nhead_out, attn_drop, negative_slope=0.2, concat_out=True) -> nn.Module:
